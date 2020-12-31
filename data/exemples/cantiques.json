@@ -1,0 +1,16 @@
+[
+    {"action":"ajoutePageWeb", "data":{"url":"https://cantiques.yapper.fr/CJ/index.html"
+        ,"fctCallBack":
+            {"action":"getUrl", "data":{"xpath":"//ul[@class='hymnlist list-unstyled']/li/a" 
+                ,"fctCallBack":
+                    {"action":"saveItem", "data":{"mapping":[
+                        {"xpath":"//main/section/h2", "key":"title"}        
+                        ,{"xpath":"//main/section/h5", "key":"desc"}
+                        ,{"xpath":"//div[@class='indent0']", "key":"fragments"}
+                        ]}
+                    }
+                }
+            }
+        }
+    }
+]
