@@ -16,10 +16,8 @@ $this->headLink()->appendStylesheet($this->assetUrl('css/Scraping.css', 'Scrapin
         <th><?php echo $this->translate('Scraping URL'); ?></th>
         <th><?php echo $this->translate('Items Added Before'); ?></th>
         <th><?php echo $this->translate('Job Status'); ?></th>
-        <th><?php echo $this->translate('Create Item Count'); ?></th>
-        <th><?php echo $this->translate('Update Item Count'); ?></th>
-        <th><?php echo $this->translate('Create Item Tag Count'); ?></th>
-        <th><?php echo $this->translate('Create Item Cita Count'); ?></th>
+        <th><?php echo $this->translate('Create Page Count'); ?></th>
+        <th><?php echo $this->translate('Create Fragment Count'); ?></th>
     </tr>
     </thead>
     <tbody>
@@ -64,20 +62,12 @@ $this->headLink()->appendStylesheet($this->assetUrl('css/Scraping.css', 'Scrapin
             <?php endif; ?>
         </td>
         <td><?php echo $this->hyperlink(
-            $import->importItemCount('create'),
-            $this->url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['cmap_import_id' => $import->id()]])
+            $import->importItemCount('Création web page'),
+            $this->url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['scraping_id' => $import->id()]])
         ); ?></td>
         <td><?php echo $this->hyperlink(
-            $import->importItemCount('update'),
-            $this->url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['cmap_import_id' => $import->id()]])
-        ); ?></td>
-        <td><?php echo $this->hyperlink(
-            $import->importItemCount('createTag'),
-            $this->url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['cmap_import_id' => $import->id()]])
-        ); ?></td>
-        <td><?php echo $this->hyperlink(
-            $import->importItemCount('createCita'),
-            $this->url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['cmap_import_id' => $import->id()]])
+            $import->importItemCount('Création page fragment'),
+            $this->url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['scraping_id' => $import->id()]])
         ); ?></td>
     </tr>
 <?php endforeach; ?>
