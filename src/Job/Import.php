@@ -7,6 +7,7 @@ use Omeka\Job\Exception;
 use Omeka\Api\Exception\RuntimeException;
 use Laminas\Dom\Query;
 use Laminas\Http\Client;
+use Omeka\Stdlib\Message;
 
 class Import extends AbstractJob
 {
@@ -34,6 +35,10 @@ class Import extends AbstractJob
         'dctype'        => 'http://purl.org/dc/dcmitype/',
         'foaf'          => 'http://xmlns.com/foaf/0.1/',
         'bibo'          => 'http://purl.org/ontology/bibo/',
+        'dbo'          => 'http://dbpedia.org/ontology',
+        'drammar'          => 'http://www.purl.org/drammar',
+        'schema'          => 'http://schema.org',
+        'thea'          => 'https://jardindesconnaissances.univ-paris8.fr/onto/theatre#',
     ];
 
     /**
@@ -120,6 +125,18 @@ class Import extends AbstractJob
      */
     protected $arrUrl;
 
+    /**
+     * proriété pour gérer le décodage des caractères
+     *
+     * @var array
+     */
+    protected $utf8decode=false;
+    /**
+     * proriété pour gérer les liens vers les références
+     *
+     * @var array
+     */
+    protected $arrRef=[];
 
     /**
      * Perform the import.
@@ -158,6 +175,7 @@ class Import extends AbstractJob
         //cf. modules/Scraping/data/exemples/cantiques.json
         $params = json_decode($this->getArg('params'),true);
         foreach($params as $p){
+            if($p['utf8decode'])$this->utf8decode=true;
             $action = $p['action'];            
             if(is_callable(array($this, $action))){
                 $this->$action($p['data']);
@@ -178,10 +196,11 @@ class Import extends AbstractJob
         if(!isset($data['body']))$data['body']=$this->getBody($data);
         $arrUrl = parse_url($data['url']);
         $dom = new Query($data['body']);
-        $results = $dom->execute($data["xpath"]);                    
+        $results = $dom->queryXpath($data["xpath"]);                    
         foreach ($results as $result) {
             $url = $result->getAttribute('href');
             if (filter_var($url, FILTER_FLAG_HOST_REQUIRED) == false) {
+                if(substr($url, 0)!="/")$url="/".$url;
                 $url=$arrUrl['scheme'].'://'.$arrUrl['host'].$url;
             }
             $data['fctCallBack']['data']['oItemParent']=$data['oItem'];            
@@ -204,39 +223,90 @@ class Import extends AbstractJob
      */
     protected function saveItem($data)
     {
-        /*
-        $body = $this->getBody($data);
-        $dom = new Query($body);
-        $fragments = [];
-        foreach ($data['mapping'] as $m) {
-            if($m['key']!='fragments'){
-                $results = $dom->execute($m['xpath']);                    
-                foreach ($results as $result) {
-                    $data[$m['key']]= $result->nodeValue;
-                }    
-            }
+        if ($this->shouldStop()) {
+            $this->logger->warn(new Message(
+                'The job "Scraping:saveItem" was stopped: %d ', // @translate
+                $data['id']
+            ));
+            return;
         }
-        */
         //création de l'item
-        $oItem = $this->ajoutePageWeb($data);              
+        if($data['url'])$oItem = $this->ajoutePageWeb($data);
+        else $oItem = $this->ajoutePageFragment($data);
+
+        //exécution du mapping              
         $body = $oItem->value('bibo:content')->__toString();
         $dom = new Query($body);
-        //enregistre les fragments
+        //enregistre les fragments et les infos supplémentaires
+        //ATTENTION : le mapping fragment est toujours en dernier
+        $infos = [];
+        $numFrag = 0;
         foreach ($data['mapping'] as $i=>$m) {
             if($m['key']=='fragments'){
+                $numFrag++;
+                if(count($infos)){
+                    $oItem=$this->updateItem('items',$oItem->id(),$infos);
+                    //enregistrement des références
+                    if(isset($data['setId'])){
+                        $ident =  $oItem->value('dcterms:identifier')->__toString();
+                        $this->arrRef[$data['setId']][$ident]=$oItem->id();
+                    }
+
+                    $infos=[];
+                }
                 $results = $dom->execute($m['xpath']);                    
                 foreach ($results as $j=>$result) {
-                    $d = ['id'=>$oItem->id().'_'.$i.'_'.$j
-                        ,'titre'=>$oItem->displayTitle().' - fragment : '.$i.'_'.$j 
-                        ,'desc'=>$m['xpath']
-                        ,'isPartOf'=>$oItem->id()
-                        ,'body'=>$result->nodeValue
-                    ];
-                    $f = $this->ajoutePageFragment($d);
+                    $body = $this->utf8decode ? utf8_decode($result->ownerDocument->saveXML($result)) : $result->ownerDocument->saveXML($result);
+                    $m['id']=$oItem->id().'_'.$i.'_'.$j;
+                    $m['titre']=$oItem->displayTitle().' - fragment : '.$numFrag.'_'.$j ;
+                    $m['desc']=$m['xpath'];
+                    $m['isPartOf']=$oItem->id();
+                    $m['body']=$body;
+                    $f = $this->saveItem($m);
                 }    
+            }else{
+                //ajoute la propriété à l'item
+                $results = $dom->execute($m['xpath']);
+                foreach ($results as $j=>$result) {
+                    $val = $this->utf8decode ? utf8_decode($result->nodeValue) : $result->nodeValue;
+                    if(isset($m['start'])){
+                        if(isset($m['end']))
+                            $val = substr($val, $m['start'], $m['end']);
+                        else
+                            $val = substr($val, $m['start']);
+                    }
+                    if(isset($m['multi'])){
+                        $vals = explode($m['multi'],$val);
+                    }else
+                        $vals = [$val];
+                    foreach($vals as $v) {
+                        $resource = false;
+                        if(isset($m['getId'])){
+                            $v =  $this->arrRef[$m['getId']][$v];
+                            $resource = true;
+                        }
+                        if(isset($m['find']) && isset($m['replace'])){
+                            $v = str_replace($m['find'], $m['replace'],$v);
+                        }
+
+                        $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
+                    }            
+                }
+                //vérification de la valeur par défaut
+                if($results->count()==0 && $m['val']){
+                    $infos = $this->mapValues([$m['key']=>$m['val']], $infos);                    
+                }
             }
         }
- 
+        if(count($infos)){
+            $oItem=$this->updateItem('items',$oItem->id(),$infos);
+            //enregistrement des références
+            if(isset($data['setId'])){
+                $ident =  $oItem->value('dcterms:identifier')->__toString();
+                $this->arrRef[$data['setId']][$ident]=$oItem->id();
+            }
+        }
+
         return $oItem;
     }
 
@@ -283,6 +353,14 @@ class Import extends AbstractJob
      */
     protected function ajoutePageWeb($data)
     {
+        if ($this->shouldStop()) {
+            $this->logger->warn(new Message(
+                'The job "Scraping:ajoutePageWeb" was stopped: %d ', // @translate
+                $data['url']
+            ));
+            return;
+        }
+
         //vérifie la présence de l'item pour ne pas écraser les données
         $param = array();
         $param['property'][0]['property']= $this->properties['bibo']['uri']->id()."";
@@ -348,13 +426,12 @@ class Import extends AbstractJob
         //$this->logger->info("RECHERCHE COUNT = ".count($result));
 
         if(count($result)){
-            $oItem = $result[0];
+            $oItem = $this->updateItem('items',$result[0]->id(),$this->mapValues($data));
             $this->logger->info("Le fragment existe déjà : '".$oItem->displayTitle()."' (".$oItem->id().").");
         }else{
             //creation du fragment
             $oItem = [];
             $oItem['o:item_set'] = [['o:id' => $this->itemSet->id()]];
-            $oItem['o:resource_class'] = ['o:id' => $this->resourceClasses['dctype']['Text']->id()];
             $oItem['o:resource_templates'] = ['o:id' => $this->resourceTemplate['scrapping page fragment']->id()];
             $oItem = $this->mapValues($data, $oItem);
 
@@ -377,6 +454,67 @@ class Import extends AbstractJob
         }
         return $oItem;
     }    
+
+
+    /**
+     * Helper to update a resource.
+     *
+     *
+     * @param string $resourceType
+     * @param int $id
+     * @param array $data
+     * @return mixed
+     */
+    protected function updateItem($resourceType, $id, $data)
+    {
+        $resource = $this->api->read($resourceType, $id)->getContent();
+
+        // Use arrays to simplify process.
+        $currentData = json_decode(json_encode($resource), true);
+        $replaced = $this->replacePropertyValues($currentData, $data);
+        $newData = array_replace($data, $replaced);
+
+        $fileData = [];
+        $options['isPartial'] = true;
+        $options['collectionAction'] = 'replace';
+        $response = $this->api->update($resourceType, $id, $newData, $fileData, $options);
+        return $response->getContent();
+    }
+
+    /**
+     * Replace current property values by new ones that are set.
+     *
+     * @param array $currentData
+     * @param array $newData
+     * @return array Merged values extracted from the current and new data.
+     */
+    protected function replacePropertyValues(array $currentData, array $newData)
+    {
+        $currentValues = $this->extractPropertyValuesFromResource($currentData);
+        $newValues = $this->extractPropertyValuesFromResource($newData);
+        $updatedValues = array_replace($currentValues, $newValues);
+        return $updatedValues ;
+    }
+
+        /**
+     * Extract property values from a full array of metadata of a resource json.
+     *
+     * @param array $resourceJson
+     * @return array
+     */
+    protected function extractPropertyValuesFromResource($resourceJson)
+    {
+        static $listOfTerms;
+        if (empty($listOfTerms)) {
+            $response = $this->api->search('properties', []);
+            foreach ($response->getContent() as $member) {
+                $term = $member->term();
+                $listOfTerms[$term] = $term;
+            }
+        }
+        return array_intersect_key($resourceJson, $listOfTerms);
+    }
+
 
     /**
      * Cache selected resource classes.
@@ -451,16 +589,26 @@ class Import extends AbstractJob
      *
      * @param array $ScrapingItem The Scraping item data
      * @param array $omekaItem The Omeka item data
+     * @param boolean $resource force la valeur ressource
      * @return array
      */
-    public function mapValues(array $ScrapingItem, array $omekaItem)
+    public function mapValues(array $ScrapingItem, array $omekaItem=[], $resource=false)
     {
         foreach ($ScrapingItem as $key => $value) {
             if (!$value) {
                 continue;
             }
             if (!isset($this->itemFieldMap[$key])) {
-                continue;
+                //on crée la clef à partir du json de paramétrage
+                if($key=="class"){
+                    $arrKey = explode(':',$value);
+                    $omekaItem['o:resource_class'] = ['o:id' => $this->resourceClasses[$arrKey[0]][$arrKey[1]]->id()];        
+                }else{
+                    $arrKey = explode(':',$key);
+                    if(count($arrKey)!=2)continue;
+                    $this->itemFieldMap[$arrKey[1]][$arrKey[0]]=$arrKey[1];
+                    $key = $arrKey[1];    
+                }
             }
             foreach ($this->itemFieldMap[$key] as $prefix => $localName) {
                 if (isset($this->properties[$prefix][$localName])) {
@@ -470,7 +618,7 @@ class Import extends AbstractJob
                     if ('bibo' == $prefix && 'uri' == $localName) {
                         $valueObject['@id'] = $value;
                         $valueObject['type'] = 'uri';
-                    }else if ('source' == $key || 'isPartOf' == $key) {
+                    }else if ('source' == $key || 'isPartOf' == $key || $resource) {
                         $valueObject['value_resource_id'] = $value;
                         $valueObject['type'] = 'resource';
                     } else {

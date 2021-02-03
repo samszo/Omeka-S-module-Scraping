@@ -1,0 +1,66 @@
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix vs: <http://www.w3.org/2003/06/sw-vocab-status/ns#> .
+@prefix o: <http://omeka.org/s/vocabs/o#> .
+@prefix thea: <https://jardindesconnaissances.univ-paris8.fr/onto/theatre#> .
+
+
+<https://jardindesconnaissances.univ-paris8.fr/onto/theatre#> a owl:Ontology ;
+    dcterms:title "Théâtre" .
+
+thea:Piece a rdfs:Class ;
+    rdfs:label "Pièce" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:Acte a rdfs:Class ;
+    rdfs:label "Acte" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:Scene a rdfs:Class ;
+    rdfs:label "Scene" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:Replique a rdfs:Class ;
+    rdfs:label "Replique" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:hasPiece a rdf:Property ;
+    rdfs:label "A comme pièce" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:hasActeur a rdf:Property ;
+    rdfs:label "A comme acteur" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:hasActe a rdf:Property ;
+    rdfs:label "A comme acte" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:hasScene a rdf:Property ;
+    rdfs:label "A comme scene" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:hasReplique a rdf:Property ;
+    rdfs:label "A comme replique" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:isQuestion a rdf:Property ;
+    rdfs:label "Est une question" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:isExclamation a rdf:Property ;
+    rdfs:label "Est une question" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .

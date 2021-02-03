@@ -1,0 +1,50 @@
+[
+    {"utf8decode":true, "action":"ajoutePageWeb", "data":{"url":"http://dramacode.github.io/"
+        ,"fctCallBack":
+            {"action":"getUrl", "data":{"xpath":"//table/tr[td='Molière']/td/a[@title='Page web insérable dans un site web']" 
+                ,"fctCallBack":
+                    {"action":"saveItem", "data":{  "class":"thea:Piece", "mapping":[
+                        {"xpath":"//div[@class='titlePart main']", "key":"titre"}        
+                        ,{"xpath":"//div[@class='titlePart sub']", "key":"dcterms:alternative"}
+                        ,{"xpath":"//p[@class='docDate']", "key":"dcterms:created"}
+                        ,{"xpath":"//p[@class='docAuthor']", "key":"dcterms:creator"}
+                        ,{"xpath":"//div[@class='argument']/p[@class='p autofirst']", "key":"desc"}                
+                        ,{"xpath":"//li[@class='castItem']", "key":"fragments", "relation":"thea:hasActeur", "setId":"acteurs", "class":"dbo:Actor"
+                            ,"mapping":[
+                                {"xpath":"/span/@class", "key":"drammar:isRoleOf"}        
+                                ,{"xpath":"/span", "key":"dcterms:identifier"}
+                                ,{"xpath":"li", "key":"titre"}
+                                ]                            
+                        }
+                        ,{"xpath":"//section[@class='div1 act level2']", "key":"fragments", "relation":"thea:hasPiece", "class":"thea:Acte"
+                            ,"mapping":[
+                                {"xpath":"/h2", "key":"title", "find":" §", "replace":"", "val":"Pièce en un Acte"}
+                                ,{"xpath":"/section[@class='div2 scene level3']", "key":"fragments" , "relation":"thea:hasActe", "class":"drammar:Scene"
+                                    ,"mapping":[
+                                        {"xpath":"/h3", "key":"title", "find":" §", "replace":""}        
+                                        ,{"xpath":"/div[@class='stage stage']", "key":"thea:hasActeur"
+                                            , "getId":"acteurs", "multi":", ", "start":"0", "end":"-1"}
+                                        ,{"xpath":"/div[@class='sp']", "key":"fragments", "relation":"thea:hasScene", "class":"thea:Replique","mapping":[
+                                            {"xpath":"/p[@class='speaker']", "key":"dbo:speaker", "getId":"acteurs"}        
+                                            ,{"xpath":"/p[@class='p autofirst']", "key":"desc"}        
+                                            ,{"xpath":"@id", "key":"title"}
+                                            ,{"xpath":"count(//div[contains(text(), '?')]", "key":"thea:isQuestion"}                                            
+                                            ,{"xpath":"count(//div[contains(text(), '!')]", "key":"thea:isExclamation"}                                            
+                                            ,{"xpath":"//div[contains(text(), '?')]", "key":"fragments", "relation":"thea:hasReplique", "class":"schema:Question","mapping":[
+                                                {"xpath":"div", "key":"titre"}
+                                            ]}               
+                                            ,{"xpath":"//div[contains(text(), '?')=false]", "key":"fragments", "relation":"thea:hasReplique", "class":"schema:Comment","mapping":[
+                                                {"xpath":"div", "key":"titre"}
+                                            ]}               
+                                        ]}
+                                    ]
+                                } 
+                            ]                           
+                        }
+                        ]}
+                    }
+                }
+            }
+        }
+    }
+]

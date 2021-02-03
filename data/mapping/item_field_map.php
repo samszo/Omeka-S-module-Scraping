@@ -6,6 +6,7 @@ return [
     'url'               => 'bibo:uri',
     'desc'              => 'dcterms:description',
     'titre'             => 'dcterms:title',
+    'title'             => 'dcterms:title',
     'dateCreated'        => 'dcterms:created',
     'dateModified'        => 'dcterms:dateSubmitted',
     'author'              => 'dcterms:creator',
