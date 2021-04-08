@@ -10,8 +10,6 @@
                 "fctCallBack": {
                     "action": "saveItem",
                     "data": {
-                        "repriseK":"url",
-                        "repriseV":"http://dramacode.github.io/article/moliere_precieusesridicules.html",
                         "class": "thea:Piece",
                         "mapping": [ {
                             "xpath": "//div[@class='titlePart main']",
@@ -46,7 +44,7 @@
                             }
                         ]
                         }, {
-                            "xpath": "//section[@class='div1 act level2']",
+                            "xpath": "//section[contains(@class,'act level2')]",
                             "key": "fragments",
                             "relation": "thea:hasPiece",
                             "class": "thea:Acte",
@@ -57,7 +55,7 @@
                                 "replace": "",
                                 "val": "Pièce en un Acte"
                             }, {
-                                "xpath": "//section[@class='div2 scene level3']",
+                                "xpath": "//section[contains(@class,'scene level3')]",
                                 "key": "fragments",
                                 "relation": "thea:hasActe",
                                 "class": "thea:Scene",
@@ -79,6 +77,8 @@
                                     "relation": "thea:hasScene",
                                     "class": "thea:Replique",
                                     "suptag": "small",
+                                    "find": "’",
+                                    "replace": "'",
                                     "mapping": [{
                                         "xpath": "//p[@class='speaker']",
                                         "key": "dbo:speaker",
@@ -86,12 +86,8 @@
                                     }, {
                                         "xpath": "//p[@class='p autofirst']",
                                         "key": "desc",
-                                        "find": "’",
-                                        "replace": "'",
                                         "function": "extractPhrasesKeywords"
                                     }, {
-                                        "find": "’",
-                                        "replace": "'",
                                         "xpath": "//div/@id",
                                         "key": "title",
                                         "suptag": "small"

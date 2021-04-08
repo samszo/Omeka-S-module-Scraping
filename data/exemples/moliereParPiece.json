@@ -1,0 +1,109 @@
+[{
+    "action": "saveItem",
+    "utf8decode": true,
+    "data": {
+        "url": "http://dramacode.github.io/article/moliere_melicerte.html",
+        "class": "thea:Piece",
+        "mapping": [{
+            "xpath": "//div[@class='titlePart main']",
+            "key": "titre"
+        }, {
+            "xpath": "//div[@class='titlePart sub']",
+            "key": "dcterms:alternative"
+        }, {
+            "xpath": "//p[@class='docDate']",
+            "key": "dcterms:created"
+        }, {
+            "xpath": "//p[@class='docAuthor']",
+            "key": "dcterms:creator"
+        }, {
+            "xpath": "//div[@class='argument']/p[@class='p autofirst']",
+            "key": "desc"
+        }, {
+            "xpath": "//li[@class='castItem']",
+            "key": "fragments",
+            "relation": "thea:hasPiece",
+            "setId": "acteurs",
+            "class": "thea:Role",
+            "mapping": [{
+                "xpath": "//span/@class",
+                "key": "thea:isRoleOf"
+            }, {
+                "xpath": "//span",
+                "key": "dcterms:identifier"
+            }, {
+                "xpath": ".",
+                "key": "titre"
+            }]
+        }, {
+            "xpath": "//section[contains(@class,'act level2')]",
+            "key": "fragments",
+            "relation": "thea:hasPiece",
+            "class": "thea:Acte",
+            "mapping": [{
+                "xpath": "//h2",
+                "key": "title",
+                "find": " §",
+                "replace": "",
+                "val": "Pièce en un Acte"
+            }, {
+                "xpath": "//section[contains(@class,'scene level3')]",
+                "key": "fragments",
+                "relation": "thea:hasActe",
+                "class": "thea:Scene",
+                "mapping": [{
+                    "xpath": "//h3",
+                    "key": "title",
+                    "find": " §",
+                    "replace": ""
+                }, {
+                    "xpath": "//div[@class='stage stage']",
+                    "key": "thea:hasRole",
+                    "getId": "acteurs",
+                    "multi": ", ",
+                    "start": "0",
+                    "end": "-1"
+                }, {
+                    "xpath": "//div[@class='sp']",
+                    "key": "fragments",
+                    "relation": "thea:hasScene",
+                    "class": "thea:Replique",
+                    "suptag": "small",
+                    "find": "’",
+                    "replace": "'",
+                    "mapping": [{
+                        "xpath": "//p[@class='speaker']",
+                        "key": "dbo:speaker",
+                        "getId": "acteurs"
+                    }, {
+                        "xpath": "//p[@class='p autofirst']",
+                        "key": "desc",
+                        "function": "extractPhrasesKeywords"
+                    }, {
+                        "xpath": "//div/@id",
+                        "key": "title",
+                        "suptag": "small"
+                    }, {
+                        "xpath": "//p[contains(text(), '?')]",
+                        "function": "count",
+                        "key": "thea:isQuestion"
+                    }, {
+                        "xpath": "//p[contains(text(), '!')]",
+                        "function": "count",
+                        "key": "thea:isExclamation"
+                    }, {
+                        "xpath": "//div/div",
+                        "key": "fragments",
+                        "relation": "thea:isVersOf",
+                        "class": "thea:Vers",
+                        "mapping": [{
+                            "xpath": ".",
+                            "key": "titre",
+                            "function": "extractPhrasesKeywords"
+                        }]
+                    }]
+                }]
+            }]
+        }]
+    }
+}]

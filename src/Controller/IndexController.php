@@ -6,7 +6,6 @@ use Omeka\Form\ConfirmForm;
 use Omeka\Stdlib\Message;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\View\Model\ViewModel;
-use Laminas\Dom\Query;
 use Scraping\Form\ImportForm;
 use Scraping\Job;
 
@@ -31,16 +30,14 @@ class IndexController extends AbstractActionController
         $request = $this->getRequest();
 
         if ($request->isPost()) {
-            $data = array_merge_recursive(
-                $request->getPost()->toArray(),
-            );
+            $data = array_merge_recursive($request->getPost()->toArray());
     
             if ($data['itemSet'] && $data['params']) {
                 $timestamp =  new DateTime();
                 $timestamp = (int) $timestamp->format('U');
                 $args = [
                     'itemSet'       => $data['itemSet'],
-                    'params'          => $data['params'],
+                    'params'        => $data['params'],
                     'version'       => 1,
                     'timestamp'     => $timestamp,
                  ];

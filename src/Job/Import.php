@@ -1,6 +1,18 @@
 <?php
 namespace Scraping\Job;
 
+//TODO:charger la librairie par composer https://github.com/Donatello-za/rake-php-plus
+require dirname(dirname(__DIR__)) . '/src/RakePlus/ILangParseOptions.php';
+require dirname(dirname(__DIR__)) . '/src/RakePlus/LangParseOptions.php';
+require dirname(dirname(__DIR__)) . '/src/RakePlus/AbstractStopwordProvider.php';
+require dirname(dirname(__DIR__)) . '/src/RakePlus/StopwordArray.php';
+require dirname(dirname(__DIR__)) . '/src/RakePlus/StopwordsPatternFile.php';
+require dirname(dirname(__DIR__)) . '/src/RakePlus/StopwordsPHP.php';
+require dirname(dirname(__DIR__)) . '/src/RakePlus/RakePlus.php';
+
+
+use DonatelloZa\RakePlus\RakePlus;
+
 use DateTime;
 use Omeka\Job\AbstractJob;
 use Omeka\Job\Exception;
@@ -39,6 +51,8 @@ class Import extends AbstractJob
         'drammar'          => 'http://www.purl.org/drammar',
         'schema'          => 'http://schema.org',
         'thea'          => 'https://jardindesconnaissances.univ-paris8.fr/onto/theatre#',
+        'skos'          => 'http://www.w3.org/2004/02/skos/core#',
+
     ];
 
     /**
@@ -137,6 +151,31 @@ class Import extends AbstractJob
      * @var array
      */
     protected $arrRef=[];
+    /**
+     * objet pour gérer l'extraction des mots clef
+     *
+     * @var object
+     */
+    protected $rake;
+    /**
+     * proriété pour gérer la langue des stop words
+     *
+     * @var string
+     */
+    protected $lang='fr_FR';
+    /**
+     * proriété pour optimiser la création de tag
+     *
+     * @var string
+     */
+    protected $tags=[];
+    /**
+     * proriété pour gérer les reprises
+     *
+     * @var array
+     */
+    protected $reprises=[];
+    
 
     /**
      * Perform the import.
@@ -171,6 +210,8 @@ class Import extends AbstractJob
         $this->client = $this->getServiceLocator()->get('Omeka\HttpClient')
             ->setOptions(['timeout' => 20]);
 
+        $this->rake = new RakePlus('OK',$this->lang);
+
         //traitement des params
         //cf. modules/Scraping/data/exemples/cantiques.json
         $params = json_decode($this->getArg('params'),true);
@@ -204,7 +245,9 @@ class Import extends AbstractJob
                 $url=$arrUrl['scheme'].'://'.$arrUrl['host'].$url;
             }
             $data['fctCallBack']['data']['oItemParent']=$data['oItem'];            
-            $data['fctCallBack']['data']['url']=$url;            
+            $data['fctCallBack']['data']['url']=$url;
+            //passe le xpath pour gérer la reprise
+            $data['fctCallBack']['data']['xpath']=$data["xpath"];                        
             $action = $data['fctCallBack']['action'];        
             if(is_callable(array($this, $action))){
                 $this->$action($data['fctCallBack']['data']);
@@ -222,7 +265,8 @@ class Import extends AbstractJob
      * @return oItem
      */
     protected function saveItem($data)
-    {
+    {        
+
         if ($this->shouldStop()) {
             $this->logger->warn(new Message(
                 'The job "Scraping:saveItem" was stopped: %d ', // @translate
@@ -230,12 +274,25 @@ class Import extends AbstractJob
             ));
             return;
         }
-        //création de l'item
+
+        //gestion de la reprise 
+        if(isset($data['repriseK']) && isset($data['repriseV'])){
+            if($data[$data['repriseK']]!=$data['repriseV'] && !in_array($data['xpath'], $this->reprises))return;
+            else{ 
+                if($data['xpath'] && !in_array($data['xpath'], $this->reprises))$this->reprises[]=$data['xpath'];        
+                unset($data['repriseK']);
+                unset($data['repriseV']);
+            }
+        }
+
+        //récupération de l'item
+        if($data['oId'])$oItem = $this->api->read('items',$data['oId']);
         if($data['url'])$oItem = $this->ajoutePageWeb($data);
         else $oItem = $this->ajoutePageFragment($data);
 
         //exécution du mapping              
         $body = $oItem->value('bibo:content')->__toString();
+
         $dom = new Query($body);
         //enregistre les fragments et les infos supplémentaires
         //ATTENTION : le mapping fragment est toujours en dernier
@@ -254,43 +311,73 @@ class Import extends AbstractJob
 
                     $infos=[];
                 }
-                $results = $dom->execute($m['xpath']);                    
+                $results = $dom->queryXpath($m['xpath']);                    
                 foreach ($results as $j=>$result) {
                     $body = $this->utf8decode ? utf8_decode($result->ownerDocument->saveXML($result)) : $result->ownerDocument->saveXML($result);
                     $m['id']=$oItem->id().'_'.$i.'_'.$j;
                     $m['titre']=$oItem->displayTitle().' - fragment : '.$numFrag.'_'.$j ;
                     $m['desc']=$m['xpath'];
                     $m['isPartOf']=$oItem->id();
+                    if(isset($m['suptag'])){
+                        $exp='/<'.$m['suptag'].'(.*?)<\/'.$m['suptag'].'>/s';
+                        $body=preg_replace($exp,'',$body);
+                    }
+                    if(isset($m['find']) && isset($m['replace'])){
+                        $body = str_replace($m['find'], $m['replace'],$body);
+                    }
                     $m['body']=$body;
+                    //vérifie si la reprise a été faite
+                    if (in_array($m['xpath'], $this->reprises)) {
+                        unset($m['repriseK']);
+                        unset($m['repriseV']);
+                    }                    
                     $f = $this->saveItem($m);
+                    //vérifie si la reprise est faite
+                    if($f && isset($m['repriseK']) && isset($m['repriseV'])){
+                        $this->reprises[]=$m['xpath'];        
+                    }
                 }    
             }else{
                 //ajoute la propriété à l'item
-                $results = $dom->execute($m['xpath']);
-                foreach ($results as $j=>$result) {
-                    $val = $this->utf8decode ? utf8_decode($result->nodeValue) : $result->nodeValue;
-                    if(isset($m['start'])){
-                        if(isset($m['end']))
-                            $val = substr($val, $m['start'], $m['end']);
-                        else
-                            $val = substr($val, $m['start']);
+                $results = $dom->queryXpath($m['xpath']);
+                //vérification des fonctions a executer
+                if($m['function']=="count"){
+                    $infos = $this->mapValues([$m['key']=>$results->count().""], $infos);                    
+                }else{
+                    foreach ($results as $j=>$result) {
+                        $val = $this->utf8decode ? utf8_decode($result->nodeValue) : $result->nodeValue;
+                        if(isset($m['start'])){
+                            if(isset($m['end']))
+                                $val = substr($val, $m['start'], $m['end']);
+                            else
+                                $val = substr($val, $m['start']);
+                        }
+                        if(isset($m['multi'])){
+                            $vals = explode($m['multi'],$val);
+                        }else
+                            $vals = [$val];
+                            foreach($vals as $v) {
+                                $resource = false;
+                                if(isset($m['getId'])){
+                                    $v =  $this->arrRef[$m['getId']][$v];
+                                    $resource = true;
+                                }
+                                if(isset($m['find']) && isset($m['replace'])){
+                                    $v = str_replace($m['find'], $m['replace'],$v);
+                                }
+                                if($m['function']=="extractPhrasesKeywords"){
+                                    $this->extractPhrasesKeywords($oItem,$v);
+                                }
+                                if($m['function']=="setUri"){
+                                    $v = [$m['key'],$v,$result->getAttribute('href')];
+                                    $m['key']="setUri";
+                                }
+                                if($m['key']=="schema:actionOption"){
+                                    $v=$this->idImport.'_'.$v;
+                                }                                         
+                                $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
+                            }
                     }
-                    if(isset($m['multi'])){
-                        $vals = explode($m['multi'],$val);
-                    }else
-                        $vals = [$val];
-                    foreach($vals as $v) {
-                        $resource = false;
-                        if(isset($m['getId'])){
-                            $v =  $this->arrRef[$m['getId']][$v];
-                            $resource = true;
-                        }
-                        if(isset($m['find']) && isset($m['replace'])){
-                            $v = str_replace($m['find'], $m['replace'],$v);
-                        }
-
-                        $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
-                    }            
                 }
                 //vérification de la valeur par défaut
                 if($results->count()==0 && $m['val']){
@@ -310,6 +397,38 @@ class Import extends AbstractJob
         return $oItem;
     }
 
+    /**
+     * récupère les phrases et les mots clefs
+     *
+     * @param   o:item      $oItem
+     * @param   string      $text
+     * 
+     * @return  array
+     */
+    protected function extractPhrasesKeywords($oItem, $text)    
+    {
+        $sentences = preg_split('/(?<=[.?!])\s+(?=[a-z])/i', $text);
+        foreach ($sentences as $i=>$s) {
+            $data = array();
+            $data['id']=$oItem->id().'_'.$i;
+            $data['titre']=$s;
+            $data['key']="fragments";
+            $data['relation']="thea:hasReplique";
+            $data['class']= stripos($s, "?") ? "schema:Question" : "schema:Comment";
+            if(stripos($s, "?"))$data['thea:isQuestion']="1";                                            
+            if(stripos($s, "!"))$data['thea:isExclamation']="1";                                            
+            $data['isPartOf']=$oItem->id();
+            $f = $this->ajoutePageFragment($data);
+            //extraction des mots clefs
+            //$keywords = $this->rake->extract($s)->keywords();
+            $phrase_scores = $this->rake->extract($s,$this->lang)->sortByScore('desc')->scores();
+            foreach ($phrase_scores as $w=>$s) {
+                $this->ajouteTag($w,$f,$s);
+            }
+        }
+
+    }
+    
     /**
      * récupère le body d'une url
      *
@@ -424,7 +543,6 @@ class Import extends AbstractJob
         $result = $this->api->search('items',$param)->getContent();
         //$this->logger->info("RECHERCHE ITEM = ".json_encode($result));
         //$this->logger->info("RECHERCHE COUNT = ".count($result));
-
         if(count($result)){
             $oItem = $this->updateItem('items',$result[0]->id(),$this->mapValues($data));
             $this->logger->info("Le fragment existe déjà : '".$oItem->displayTitle()."' (".$oItem->id().").");
@@ -595,14 +713,33 @@ class Import extends AbstractJob
     public function mapValues(array $ScrapingItem, array $omekaItem=[], $resource=false)
     {
         foreach ($ScrapingItem as $key => $value) {
-            if (!$value) {
+            if (is_null($value)) {
                 continue;
             }
             if (!isset($this->itemFieldMap[$key])) {
                 //on crée la clef à partir du json de paramétrage
+                //ATTENTION le vocubulaire doit être chargé dans $this->vocabularies cf. ligne 33
                 if($key=="class"){
                     $arrKey = explode(':',$value);
-                    $omekaItem['o:resource_class'] = ['o:id' => $this->resourceClasses[$arrKey[0]][$arrKey[1]]->id()];        
+                    $omekaItem['o:resource_class'] = ['o:id' => $this->resourceClasses[$arrKey[0]][$arrKey[1]]->id()]; 
+                }elseif($key=="relation"){
+                    $arrKey = explode(':',$value);
+                    $property = $this->properties[$arrKey[0]][$arrKey[1]];
+                    $valueObject = [];
+                    $valueObject['property_id'] = $property->id();
+                    $valueObject['value_resource_id'] = $ScrapingItem['isPartOf'];
+                    $valueObject['type'] = 'resource';
+                    $omekaItem[$property->term()][] = $valueObject;
+                    $ScrapingItem['isPartOf']=false;
+                }elseif($key=="setUri"){
+                    $arrKey = $value[0];
+                    $property = $this->properties[$arrKey[0]][$arrKey[1]];
+                    $valueObject = [];
+                    $valueObject['property_id'] = $property->id();
+                    $valueObject['@id'] = $value[1];
+                    $valueObject['o:label'] = $value[2];                    
+                    $valueObject['type'] = 'uri';
+                    $omekaItem[$property->term()][] = $valueObject;
                 }else{
                     $arrKey = explode(':',$key);
                     if(count($arrKey)!=2)continue;
@@ -633,4 +770,85 @@ class Import extends AbstractJob
         return $omekaItem;
     }
 
+
+    /**
+     * Ajoute un tag au format skos
+     *
+     * @param array     $tag
+     * @param object    $oItem
+     * @param int       $score
+     * 
+     * @return array
+     */
+    protected function ajouteTag($tag, $oItem, $score=0)
+    {
+
+        if(isset($this->tags[$tag]))
+            $oTag=$this->tags[$tag];
+        else{
+            //vérifie la présence de l'item pour gérer la création
+            $param = array();
+            $param['property'][0]['property']= $this->properties["skos"]["prefLabel"]->id()."";
+            $param['property'][0]['type']='eq';
+            $param['property'][0]['text']=$tag; 
+            //$this->logger->info("RECHERCHE PARAM = ".json_encode($param));
+            $result = $this->api->search('items',$param)->getContent();
+            //$this->logger->info("RECHERCHE ITEM = ".json_encode($result));
+            //$this->logger->info("RECHERCHE COUNT = ".count($result));
+            if(count($result)){
+                $oTag = $result[0];
+                //$this->logger->info("ID TAG EXISTE".$result[0]->id()." = ".json_encode($result[0]));
+            }else{
+                $param = [];
+                $param['o:resource_class'] = ['o:id' => $this->resourceClasses['skos']['Concept']->id()];
+                $valueObject = [];
+                $valueObject['property_id'] = $this->properties["dcterms"]["title"]->id();
+                $valueObject['@value'] = $tag;
+                $valueObject['type'] = 'literal';
+                $param[$this->properties["dcterms"]["title"]->term()][] = $valueObject;
+                $valueObject = [];
+                $valueObject['property_id'] = $this->properties["skos"]["prefLabel"]->id();
+                $valueObject['@value'] = $tag;
+                $valueObject['type'] = 'literal';
+                $param[$this->properties["skos"]["prefLabel"]->term()][] = $valueObject;
+                //création du tag
+                $result = $this->api->create('items', $param, [], ['continueOnError' => true])->getContent();
+                $oTag = $result;
+                $importItem = [
+                    'o:item' => ['o:id' => $oTag->id()],
+                    'o-module-scraping:import' => ['o:id' => $this->idImport],
+                    'o-module-scraping:action' => "Création Tag",
+                ];
+                $this->api->create('scraping_items', $importItem, [], ['continueOnError' => true]);        
+            }
+            $this->tags[$tag] = $oTag;
+        }
+        //vérifie s'il faut ajouter la relation à l'item
+        $param = array();
+        $param['property'][0]['property']= $this->properties["skos"]["semanticRelation"]->id()."";
+        $param['property'][0]['type']='res';
+        $param['property'][0]['text']=$oTag->id(); 
+        $param['id']= $oItem->id(); 
+        $result = $this->api->search('items',$param)->getContent();
+        if(count($result)==0){
+            //ajoute la relation à l'item
+            $param = [];
+            $valueObject = [];
+            $valueObject['property_id'] = $this->properties["skos"]["semanticRelation"]->id();
+            $valueObject['value_resource_id'] = $oTag->id();
+            $valueObject['type'] = 'resource';
+            $param[$this->properties["skos"]["semanticRelation"]->term()][] = $valueObject;
+            if($score){
+                $valueObject = [];
+                $valueObject['property_id'] = $this->properties["schema"]["ratingValue"]->id();
+                $valueObject['@value'] = $score."";
+                $valueObject['type'] = 'literal';
+                $param[$this->properties["schema"]["ratingValue"]->term()][] = $valueObject;    
+            }
+            $this->api->update('items', $oItem->id(), $param, []
+                , ['isPartial'=>true, 'continueOnError' => true, 'collectionAction' => 'append']);
+        }
+
+        return $oTag;
+    }    
 }

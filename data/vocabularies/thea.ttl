@@ -4,6 +4,8 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix vs: <http://www.w3.org/2003/06/sw-vocab-status/ns#> .
 @prefix o: <http://omeka.org/s/vocabs/o#> .
+@prefix drammar:<http://www.purl.org/drammar>.
+
 @prefix thea: <https://jardindesconnaissances.univ-paris8.fr/onto/theatre#> .
 
 
@@ -23,11 +25,28 @@ thea:Acte a rdfs:Class ;
 thea:Scene a rdfs:Class ;
     rdfs:label "Scene" ;
     rdfs:domain o:Resource ;
+    owl:sameAs drammar:Scene ;
     vs:term_status "experimental" .
+
+thea:Role a rdfs:Class ;
+    rdfs:label "Rôle" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .    
 
 thea:Replique a rdfs:Class ;
     rdfs:label "Replique" ;
     rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:Vers a rdfs:Class ;
+    rdfs:label "Vers" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
+thea:isRoleOf a rdf:Property ;
+    rdfs:label "Est le rôle de" ;
+    rdfs:domain o:Resource ;
+    owl:sameAs drammar:isRoleOf;
     vs:term_status "experimental" .
 
 thea:hasPiece a rdf:Property ;
@@ -35,8 +54,8 @@ thea:hasPiece a rdf:Property ;
     rdfs:domain o:Resource ;
     vs:term_status "experimental" .
 
-thea:hasActeur a rdf:Property ;
-    rdfs:label "A comme acteur" ;
+thea:hasRole a rdf:Property ;
+    rdfs:label "A comme rôle" ;
     rdfs:domain o:Resource ;
     vs:term_status "experimental" .
 
@@ -61,6 +80,12 @@ thea:isQuestion a rdf:Property ;
     vs:term_status "experimental" .
 
 thea:isExclamation a rdf:Property ;
-    rdfs:label "Est une question" ;
+    rdfs:label "Est une exclamation" ;
     rdfs:domain o:Resource ;
     vs:term_status "experimental" .
+
+thea:isVersOf a rdf:Property ;
+    rdfs:label "Est un vers de" ;
+    rdfs:domain o:Resource ;
+    vs:term_status "experimental" .
+
