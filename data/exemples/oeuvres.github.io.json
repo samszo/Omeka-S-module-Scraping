@@ -1,0 +1,69 @@
+[{
+    "action": "saveItem",
+    "utf8decode": false,
+    "data": {
+        "url": "http://oeuvres.github.io/html/hugo_contemplations.html",
+        "class": "bibo:Webpage",
+        "mapping": [{
+            "xpath": "//h1",
+            "key": "titre"
+        }, {
+            "xpath": "//*[@class='author']",
+            "key": "fragments",
+            "relation": "dcterms:creator",
+            "class": "foaf:Person",
+            "function": "unique",
+            "mapping": [{
+                "xpath": ".",
+                "key": "titre"
+            }]
+        }, {
+            "xpath": "//article/section/section",
+            "key": "fragments",
+            "relation": "bibo:section",
+            "class": "bibo:BookSection",
+            "repriseK":"id",
+            "repriseV":"2_2_7",
+            "mapping": [{
+                "xpath": "//h2",
+                "key": "titre",
+                "find": " §",
+                "replace": ""
+            }, {
+                "xpath": "//section/section",
+                "key": "fragments",
+                "class": "dbo:Poem",
+                "repriseK":"id",
+                "repriseV":"7999_1_42",
+                    "mapping": [{
+                    "xpath": "//h3",
+                    "key": "titre",
+                    "find": " §",
+                    "replace": ""
+                    }, {
+                        "xpath": "//div[@class='dateline']",
+                        "key": "desc"
+                    }, {
+                        "xpath": "//div[@class='lg']",
+                    "key": "fragments",
+                    "repriseK":"id",
+                    "repriseV":"12156_2_22",                        
+                    "class": "doco:Stanza",
+                    "val": "Strophe ",
+                    "function": "index",
+                    "mapping": [{
+                        "xpath": "//div[@class='lg']/div[@class='l']",
+                        "key": "fragments",
+                        "class": "doco:Line",
+                        "repriseK":"id",
+                        "repriseV":"12467_0_30",                        
+                            "mapping": [{
+                            "xpath": ".",
+                            "key": "titre"
+                        }]
+                    }]
+                }]
+            }]
+        }]
+    }
+}]

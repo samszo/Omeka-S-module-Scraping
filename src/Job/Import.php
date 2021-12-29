@@ -47,12 +47,14 @@ class Import extends AbstractJob
         'dctype'        => 'http://purl.org/dc/dcmitype/',
         'foaf'          => 'http://xmlns.com/foaf/0.1/',
         'bibo'          => 'http://purl.org/ontology/bibo/',
-        'dbo'          => 'http://dbpedia.org/ontology',
+        'dbo'          => 'http://dbpedia.org/ontology/',
+        /*
         'drammar'          => 'http://www.purl.org/drammar',
         'schema'          => 'http://schema.org',
         'thea'          => 'https://jardindesconnaissances.univ-paris8.fr/onto/theatre#',
+        */
         'skos'          => 'http://www.w3.org/2004/02/skos/core#',
-
+        'doco'          => 'http://purl.org/spar/doco/'
     ];
 
     /**
@@ -193,6 +195,7 @@ class Import extends AbstractJob
 
         $this->api = $this->getServiceLocator()->get('Omeka\ApiManager');
         $this->logger = $this->getServiceLocator()->get('Omeka\Logger');
+        $this->logger->info('Perform start');        
 
 
         $this->itemSet = $this->api->read('item_sets', $this->getArg('itemSet'))->getContent();
@@ -286,19 +289,24 @@ class Import extends AbstractJob
         }
 
         //récupération de l'item
-        if($data['oId'])$oItem = $this->api->read('items',$data['oId']);
-        if($data['url'])$oItem = $this->ajoutePageWeb($data);
+        if(isset($data['oId']))$oItem = $this->api->read('items',$data['oId']);
+        if(isset($data['url']))$oItem = $this->ajoutePageWeb($data);
         else $oItem = $this->ajoutePageFragment($data);
+        
+        //récupération du code html
+        $html = $oItem->value('bibo:content')->__toString();
+        //vérifie s'il faut forcer l'encoding quand l'xml vient de la base
+        if(!isset($data['url']))$html = $this->forceHtmlEncoding($html);
 
-        //exécution du mapping              
-        $body = $oItem->value('bibo:content')->__toString();
+        //cré"atiuon du requeteur
+        $dom = new Query($html);
 
-        $dom = new Query($body);
         //enregistre les fragments et les infos supplémentaires
         //ATTENTION : le mapping fragment est toujours en dernier
         $infos = [];
         $numFrag = 0;
         foreach ($data['mapping'] as $i=>$m) {
+            //vérifie s'il faut créer un fragment
             if($m['key']=='fragments'){
                 $numFrag++;
                 if(count($infos)){
@@ -308,24 +316,36 @@ class Import extends AbstractJob
                         $ident =  $oItem->value('dcterms:identifier')->__toString();
                         $this->arrRef[$data['setId']][$ident]=$oItem->id();
                     }
-
                     $infos=[];
                 }
+                //récupère les fragments
                 $results = $dom->queryXpath($m['xpath']);                    
                 foreach ($results as $j=>$result) {
-                    $body = $this->utf8decode ? utf8_decode($result->ownerDocument->saveXML($result)) : $result->ownerDocument->saveXML($result);
+                    $xml = $this->utf8decode ? utf8_decode($result->ownerDocument->saveXML($result)) : $result->ownerDocument->saveXML($result);
                     $m['id']=$oItem->id().'_'.$i.'_'.$j;
                     $m['titre']=$oItem->displayTitle().' - fragment : '.$numFrag.'_'.$j ;
                     $m['desc']=$m['xpath'];
                     $m['isPartOf']=$oItem->id();
+                    if(isset($m['function'])){
+                        switch ($m['function']) {
+                            case 'index':
+                                $m['titre'] = $m['val'].($j+1);
+                                break;                            
+                            case 'unique':
+                                //récupère la clef
+                                $xv = $this->getXpathValue($this->forceHtmlEncoding($xml), $m['xpath']);
+                                $m['id'] = $xv['v'];
+                                break;                            
+                            }
+                    }
                     if(isset($m['suptag'])){
                         $exp='/<'.$m['suptag'].'(.*?)<\/'.$m['suptag'].'>/s';
-                        $body=preg_replace($exp,'',$body);
+                        $xml=preg_replace($exp,'',$xml);
                     }
                     if(isset($m['find']) && isset($m['replace'])){
-                        $body = str_replace($m['find'], $m['replace'],$body);
+                        $xml = str_replace($m['find'], $m['replace'],$xml);
                     }
-                    $m['body']=$body;
+                    $m['body']=$xml;
                     //vérifie si la reprise a été faite
                     if (in_array($m['xpath'], $this->reprises)) {
                         unset($m['repriseK']);
@@ -338,50 +358,49 @@ class Import extends AbstractJob
                     }
                 }    
             }else{
-                //ajoute la propriété à l'item
-                $results = $dom->queryXpath($m['xpath']);
                 //vérification des fonctions a executer
-                if($m['function']=="count"){
+                if(isset($m['function']) && $m['function']=="count"){
+                    $results = $dom->queryXpath($m['xpath']);
                     $infos = $this->mapValues([$m['key']=>$results->count().""], $infos);                    
                 }else{
-                    foreach ($results as $j=>$result) {
-                        $val = $this->utf8decode ? utf8_decode($result->nodeValue) : $result->nodeValue;
-                        if(isset($m['start'])){
-                            if(isset($m['end']))
-                                $val = substr($val, $m['start'], $m['end']);
-                            else
-                                $val = substr($val, $m['start']);
-                        }
-                        if(isset($m['multi'])){
-                            $vals = explode($m['multi'],$val);
-                        }else
-                            $vals = [$val];
-                            foreach($vals as $v) {
-                                $resource = false;
-                                if(isset($m['getId'])){
-                                    $v =  $this->arrRef[$m['getId']][$v];
-                                    $resource = true;
-                                }
-                                if(isset($m['find']) && isset($m['replace'])){
-                                    $v = str_replace($m['find'], $m['replace'],$v);
-                                }
-                                if($m['function']=="extractPhrasesKeywords"){
-                                    $this->extractPhrasesKeywords($oItem,$v);
-                                }
-                                if($m['function']=="setUri"){
-                                    $v = [$m['key'],$v,$result->getAttribute('href')];
-                                    $m['key']="setUri";
-                                }
-                                if($m['key']=="schema:actionOption"){
-                                    $v=$this->idImport.'_'.$v;
-                                }                                         
-                                $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
-                            }
+                    //récupère la valeur
+                    $xv = $this->getXpathValue('', $m['xpath'], $dom, $m['val']);
+                    $val = $xv['v'];
+                    //calcul la valeur                     
+                    if(isset($m['start'])){
+                        if(isset($m['end']))
+                            $val = substr($val, $m['start'], $m['end']);
+                        else
+                            $val = substr($val, $m['start']);
                     }
-                }
-                //vérification de la valeur par défaut
-                if($results->count()==0 && $m['val']){
-                    $infos = $this->mapValues([$m['key']=>$m['val']], $infos);                    
+                    if(isset($m['multi'])){
+                        $vals = explode($m['multi'],$val);
+                    }else
+                        $vals = [$val];
+                    foreach($vals as $v) {
+                        $resource = false;
+                        if(isset($m['getId'])){
+                            $v =  $this->arrRef[$m['getId']][$v];
+                            $resource = true;
+                        }
+                        if(isset($m['find']) && isset($m['replace'])){
+                            $v = str_replace($m['find'], $m['replace'],$v);
+                        }
+                        if($m['function']=="extractPhrasesKeywords"){
+                            $this->extractPhrasesKeywords($oItem,$v);
+                        }
+                        if($m['function']=="extractKeywords"){
+                            $this->extractKeywords($oItem,$v);
+                        }                        
+                        if($m['function']=="setUri"){
+                            $v = [$m['key'],$v, $xv['r']->getAttribute('href')];
+                            $m['key']="setUri";
+                        }
+                        if($m['key']=="schema:actionOption"){
+                            $v=$this->idImport.'_'.$v;
+                        }                                         
+                        $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
+                    }
                 }
             }
         }
@@ -396,6 +415,46 @@ class Import extends AbstractJob
 
         return $oItem;
     }
+
+    /**
+     * force l'encodage html
+     *
+     * @param   string      $html
+     * @param   string      $encoding
+     * 
+     * @return  string
+     */
+    protected function forceHtmlEncoding($html, $encoding="UTF-8")    
+    {
+        return '<!DOCTYPE html><html><head><meta charset="'.$encoding.'"/><body>'.$html.'</body></head></html>';        
+    }
+
+    /**
+     * récupère la première valeur d'un xpath
+     *
+     * @param   string                  $html
+     * @param   string                  $xpath
+     * @param   Laminas\Dom\Query       $dom
+     * @param   string                  $default
+     * 
+     * @return  array
+     */
+    protected function getXpathValue($html, $xpath, $dom=false, $default='')    
+    {
+        if(!$dom) $dom = new Query($html);
+        $results = $dom->queryXpath($xpath);
+        foreach ($results as $j=>$result) {
+            return [
+                "v"=>$this->utf8decode ? utf8_decode($result->nodeValue) : $result->nodeValue,
+                "r"=>$result
+            ];
+        }
+        return [
+            "v"=>$default,
+            "r"=>null
+        ];
+    }
+
 
     /**
      * récupère les phrases et les mots clefs
@@ -429,6 +488,24 @@ class Import extends AbstractJob
 
     }
     
+
+    /**
+     * récupère les mots clefs
+     *
+     * @param   o:item      $oItem
+     * @param   string      $text
+     * 
+     * @return  array
+     */
+    protected function extractKeywords($oItem, $text)    
+    {
+        $phrase_scores = $this->rake->extract($text,$this->lang)->sortByScore('desc')->scores();
+        foreach ($phrase_scores as $w=>$s) {
+            $this->ajouteTag($w,$oItem,$s);
+        }
+    }
+
+
     /**
      * récupère le body d'une url
      *
@@ -437,7 +514,7 @@ class Import extends AbstractJob
      */
     protected function getBody($data)
     {
-        if($data['oItem'] && $data['oItem']->value('bibo:content')){
+        if(isset($data['oItem']) && $data['oItem']->value('bibo:content')){
             return $data['oItem']->value('bibo:content')->__toString();
         }else{
             $response = $this->client->setUri($data['url'])->send();
@@ -495,9 +572,9 @@ class Import extends AbstractJob
             $this->logger->info("La page Web existe déjà : '".$oItem->displayTitle()."' (".$oItem->id().").");
         }else{
             //récupération des données
-            if(!$data['body'])$data['body']=$this->getBody($data);
-            if(!$data['titre'])$data['titre']=$this->getPageTitre($data['body']);
-            if($data['oItemParent'])$data['source']=$data['oItemParent']->id();
+            if(!isset($data['body']))$data['body']=$this->getBody($data);
+            if(!isset($data['titre']))$data['titre']=$this->getPageTitre($data['body']);
+            if(isset($data['oItemParent']))$data['source']=$data['oItemParent']->id();
 
             //creation de la page Web
             $oItem = [];
@@ -517,7 +594,7 @@ class Import extends AbstractJob
             ];
             $this->api->create('scraping_items', $importItem, [], ['continueOnError' => true]);
         }               
-        if($data['fctCallBack'] && is_callable(array($this, $data['fctCallBack']['action']))){
+        if(isset($data['fctCallBack']) && is_callable(array($this, $data['fctCallBack']['action']))){
             $data['fctCallBack']['data']['oItem']=$oItem;
             $data['fctCallBack']['data']['url']=$data['url'];
             $action = $data['fctCallBack']['action'];
@@ -721,7 +798,8 @@ class Import extends AbstractJob
                 //ATTENTION le vocubulaire doit être chargé dans $this->vocabularies cf. ligne 33
                 if($key=="class"){
                     $arrKey = explode(':',$value);
-                    $omekaItem['o:resource_class'] = ['o:id' => $this->resourceClasses[$arrKey[0]][$arrKey[1]]->id()]; 
+                    $omekaItem['o:resource_class'] = ['o:id' => $this->resourceClasses[$arrKey[0]][$arrKey[1]]->id()];
+                    continue 1; 
                 }elseif($key=="relation"){
                     $arrKey = explode(':',$value);
                     $property = $this->properties[$arrKey[0]][$arrKey[1]];
@@ -731,6 +809,7 @@ class Import extends AbstractJob
                     $valueObject['type'] = 'resource';
                     $omekaItem[$property->term()][] = $valueObject;
                     $ScrapingItem['isPartOf']=false;
+                    continue 1; 
                 }elseif($key=="setUri"){
                     $arrKey = $value[0];
                     $property = $this->properties[$arrKey[0]][$arrKey[1]];
@@ -740,6 +819,7 @@ class Import extends AbstractJob
                     $valueObject['o:label'] = $value[2];                    
                     $valueObject['type'] = 'uri';
                     $omekaItem[$property->term()][] = $valueObject;
+                    continue 1; 
                 }else{
                     $arrKey = explode(':',$key);
                     if(count($arrKey)!=2)continue;
@@ -840,10 +920,10 @@ class Import extends AbstractJob
             $param[$this->properties["skos"]["semanticRelation"]->term()][] = $valueObject;
             if($score){
                 $valueObject = [];
-                $valueObject['property_id'] = $this->properties["schema"]["ratingValue"]->id();
+                $valueObject['property_id'] = $this->properties["skos"]["note"]->id();
                 $valueObject['@value'] = $score."";
                 $valueObject['type'] = 'literal';
-                $param[$this->properties["schema"]["ratingValue"]->term()][] = $valueObject;    
+                $param[$this->properties["skos"]["note"]->term()][] = $valueObject;    
             }
             $this->api->update('items', $oItem->id(), $param, []
                 , ['isPartial'=>true, 'continueOnError' => true, 'collectionAction' => 'append']);

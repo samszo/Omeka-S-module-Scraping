@@ -1,0 +1,67 @@
+[{
+    "action": "saveItem",
+    "utf8decode": false,
+    "data": {
+        "url": "https://fr.wikisource.org/wiki/Les_Contemplations",
+        "class": "bibo:Webpage",
+        "mapping": [{
+            "xpath":"//*[@id="headertemplate"]/div/div[2]/span/span",
+            "key": "titre"
+        }, {
+            "xpath": "//*[@id="headertemplate"]/div/div[3]",
+            "key": "desc"
+        }, {
+            "xpath": "//*[@id="headertemplate"]/div/div[1]/span/a/span",
+            "key": "fragments",
+            "relation": "dcterms:creator",
+            "setId": "auteurs",
+            "class": "foaf:Person",
+            "mapping": [{
+                "xpath": ".",
+                "key": "titre"
+            }]
+        }]
+    },        
+    "fctCallBack": {
+        "action": "getUrl",
+        "data": {
+            "xpath": "//*[@class="tableItem"]/div/div/div/div/span/a",
+            "fctCallBack": {
+                "action": "saveItem",
+                    "data": {
+                        "class": "bibo:Webpage",
+                        "mapping": [ {
+                            "xpath": "//div[@class='titlePart main']",
+                            "key": "titre"
+                        }, {
+                            "xpath": "//div[@class='titlePart sub']",
+                            "key": "dcterms:alternative"
+                        }, {
+                            "xpath": "//p[@class='docDate']",
+                            "key": "dcterms:created"
+                        }, {
+                            "xpath": "//p[@class='docAuthor']",
+                            "key": "dcterms:creator"
+                        }, {
+                            "xpath": "//div[@class='argument']/p[@class='p autofirst']",
+                            "key": "desc"
+                        }, {
+                            "xpath": "//li[@class='castItem']",
+                            "key": "fragments",
+                            "relation": "thea:hasPiece",
+                            "setId": "acteurs",
+                            "class": "thea:Role",
+                            "mapping": [{
+                                "xpath": "//span/@class",
+                                "key": "thea:isRoleOf"
+                            }, {
+                                "xpath": "//span",
+                                "key": "dcterms:identifier"
+                            }, {
+                                "xpath": ".",
+                                "key": "titre"
+                            }
+                        ]
+                        }
+    }
+}]
