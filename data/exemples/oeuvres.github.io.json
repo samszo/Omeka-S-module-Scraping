@@ -23,7 +23,7 @@
             "relation": "bibo:section",
             "class": "bibo:BookSection",
             "repriseK":"id",
-            "repriseV":"2_2_7",
+            "repriseV":"2_2_4",
             "mapping": [{
                 "xpath": "//h2",
                 "key": "titre",
@@ -32,9 +32,9 @@
             }, {
                 "xpath": "//section/section",
                 "key": "fragments",
-                "class": "dbo:Poem",
                 "repriseK":"id",
-                "repriseV":"7999_1_42",
+                "repriseV":"2868_1_1",
+                "class": "dbo:Poem",
                     "mapping": [{
                     "xpath": "//h3",
                     "key": "titre",
@@ -46,22 +46,31 @@
                     }, {
                         "xpath": "//div[@class='lg']",
                     "key": "fragments",
-                    "repriseK":"id",
-                    "repriseV":"12156_2_22",                        
                     "class": "doco:Stanza",
                     "val": "Strophe ",
                     "function": "index",
-                    "mapping": [{
-                        "xpath": "//div[@class='lg']/div[@class='l']",
+                    "repriseK":"id",
+                    "repriseV":"2885_2_2",    
+                    "mapping": [
+                        {
+                        "xpath": "//div[@class='lg']/div[@class='l first']",
                         "key": "fragments",
                         "class": "doco:Line",
                         "repriseK":"id",
-                        "repriseV":"12467_0_30",                        
-                            "mapping": [{
+                        "repriseV":"2936_0_0",    
+                        "mapping": [{
                             "xpath": ".",
                             "key": "titre"
-                        }]
-                    }]
+                        }]}
+                        ,{
+                        "xpath": "//div[@class='lg']/div[@class='l']",
+                        "key": "fragments",
+                        "class": "doco:Line",
+                        "mapping": [{
+                            "xpath": ".",
+                            "key": "titre"
+                        }]}    
+                    ]
                 }]
             }]
         }]
