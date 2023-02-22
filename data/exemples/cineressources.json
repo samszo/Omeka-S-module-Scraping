@@ -1,0 +1,166 @@
+[{
+    "action": "saveItems",
+    "utf8decode": true,
+    "data": {
+        "params": ["valDeb","valFin"],
+        "values": [1900,1914],
+        "increment":"debfin",
+        "urlParams": "http://www.cineressources.net/affiches_recherche_s.do.php?binf=valDeb&bsup=valFin",
+        "titreParams": "Recherche affiche : ",
+        "mapping": [],
+        "fctCallBack": {
+            "action": "getUrl",
+            "data": {
+                "cdata": "//items/liste",
+                "xpath": "//liste/ul/li/a",
+                "domaine": "http://www.cineressources.net",
+                "fctCallBack": {
+                    "action": "saveItem",
+                    "data": {
+                        "cdata": "//items/item_0",
+                        "xpath": "//liste/div",
+                        "key": "fragments",
+                        "class": "bibo:Film",
+                        "mapping": [
+                        {
+                            "xpath": "//li[@id='numerisation_type_0']",
+                            "key": "dcterms:medium"
+                        },{
+                            "xpath": "//li[@id='credits_0']",
+                            "key": "dcterms:rights"
+                        },{
+                            "xpath": "//li[@id='numerisation_origine_0']",
+                            "key": "dcterms:source"
+                        },{
+                            "xpath": "//li[@id='numerisation_identifiant_0']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='format_0']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_0']",
+                            "key": "dcterms:rights"
+                        },{
+                            "xpath": "//li[@id='numerisation_type_1']",
+                            "key": "dcterms:medium"
+                        },{
+                            "xpath": "//li[@id='credits_1']",
+                            "key": "dcterms:rights"
+                        },{
+                            "xpath": "//li[@id='numerisation_origine_1']",
+                            "key": "dcterms:source"
+                        },{
+                            "xpath": "//li[@id='numerisation_identifiant_1']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='format_1']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_1']",
+                            "key": "dcterms:rights"
+                        },{
+                            "xpath": "//li[@id='titre_principal']",
+                            "key": "dcterms:title",
+                            "find": "Titre : ",
+                            "replace": ""
+                        },{
+                            "xpath": "//li[@id='auteur']",
+                            "key": "dcterms:creator",
+                            "find": "Auteur : ",
+                            "replace": "" 
+                        },{
+                            "xpath": "//li[@id='creation']",
+                            "key": "dcterms:spatial"
+                        },{
+                            "xpath": "//li[@id='ressource_type']",
+                            "key": "dcterms:type",
+                            "find": "Type :",
+                            "replace": ""                              
+                        },{
+                            "xpath": "//li[@id='description']",
+                            "key": "dcterms:description",
+                            "find": "Description :",
+                            "replace": "" 
+                        },{
+                            "xpath": "//li[@id='indexation']",
+                            "key": "dcterms:references"
+                        },{
+                            "xpath": "//li[@id='stock_1']",
+                            "key": "bibo:distributor"
+                        },{
+                            "xpath": "//li[@id='reference_1']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='description_1']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_1']",
+                            "key": "dcterms:audience"
+                        },{
+                            "xpath": "//li[@id='stock_2']",
+                            "key": "bibo:distributor"
+                        },{
+                            "xpath": "//li[@id='reference_2']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='description_2']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_2']",
+                            "key": "dcterms:audience"
+                        },{
+                            "xpath": "//li[@id='stock_3']",
+                            "key": "bibo:distributor"
+                        },{
+                            "xpath": "//li[@id='reference_3']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='description_3']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_3']",
+                            "key": "dcterms:audience"
+                        },{
+                            "xpath": "//li[@id='stock_4']",
+                            "key": "bibo:distributor"
+                        },{
+                            "xpath": "//li[@id='reference_4']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='description_4']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_4']",
+                            "key": "dcterms:audience"
+                        },{
+                            "xpath": "//li[@id='stock_5']",
+                            "key": "bibo:distributor"
+                        },{
+                            "xpath": "//li[@id='reference_5']",
+                            "key": "dcterms:isReferencedBy"
+                        },{
+                            "xpath": "//li[@id='description_5']",
+                            "key": "dcterms:format"
+                        },{
+                            "xpath": "//li[@id='acces_5']",
+                            "key": "dcterms:audience"
+                        },{
+                            "xpath": "//li[@id='sujet_film']/a/@href",
+                            "key": "dcterms:identifier",
+                            "function":"getUriParam",
+                            "kParam": "pk"
+                        },{
+                            "xpath": "//li[@id='sujet_film']",
+                            "key": "dcterms:subject",
+                            "multi":" - ",
+                            "function":"extractKeywords",
+                            "find": "Sujet (film) :",
+                            "replace": ""      
+                        }                                           
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}]

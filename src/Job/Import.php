@@ -47,14 +47,14 @@ class Import extends AbstractJob
         'dctype'        => 'http://purl.org/dc/dcmitype/',
         'foaf'          => 'http://xmlns.com/foaf/0.1/',
         'bibo'          => 'http://purl.org/ontology/bibo/',
-        'dbo'          => 'http://dbpedia.org/ontology/',
+        'skos'          => 'http://www.w3.org/2004/02/skos/core#',
         /*
+        'dbo'          => 'http://dbpedia.org/ontology/',
         'drammar'          => 'http://www.purl.org/drammar',
         'schema'          => 'http://schema.org',
         'thea'          => 'https://jardindesconnaissances.univ-paris8.fr/onto/theatre#',
-        */
-        'skos'          => 'http://www.w3.org/2004/02/skos/core#',
         'doco'          => 'http://purl.org/spar/doco/'
+        */
     ];
 
     /**
@@ -242,8 +242,9 @@ class Import extends AbstractJob
         $dom = new Query($data['body']);
         $results = $dom->queryXpath($data["xpath"]);                    
         foreach ($results as $result) {
-            $url = $result->getAttribute('href');
-            if (filter_var($url, FILTER_FLAG_HOST_REQUIRED) == false) {
+            $url = isset($data['domaine']) ? $data['domaine'] : "";
+            $url .= $result->getAttribute('href');
+            if (filter_var($url) == false) {
                 if(substr($url, 0)!="/")$url="/".$url;
                 $url=$arrUrl['scheme'].'://'.$arrUrl['host'].$url;
             }
@@ -257,6 +258,34 @@ class Import extends AbstractJob
             }else{
                 $this->logger->error('Action non trouvées',$data);        
             }
+        }
+
+    }
+
+    /**
+     * enregistre des items à partir d'une url et de paramètres
+     *
+     * @param array     $data
+     */
+    protected function saveItems($data)
+    {
+
+        for ($i=$data['values'][0]; $i <= $data['values'][1]; $i++) { 
+            if ($this->shouldStop()) {
+                $this->logger->warn(new Message(
+                    'The job "Scraping:saveItems" was stopped: %d ', // @translate
+                    $i
+                ));
+                return;
+            }
+            if($data['increment']=='debfin'){
+                $url = str_replace($data['params'][0], $i, $data['urlParams']);
+                $url = str_replace($data['params'][1], $i+1, $url);
+                $titre = $data['titreParams'].$i.' - '.$i+1; 
+            }
+            $data['titre']=$titre;     
+            $data['url']=$url;     
+            $this->saveItem($data);       
         }
 
     }
@@ -298,7 +327,7 @@ class Import extends AbstractJob
         //vérifie s'il faut forcer l'encoding quand l'xml vient de la base
         if(!isset($data['url']))$html = $this->forceHtmlEncoding($html);
 
-        //cré"atiuon du requeteur
+        //création du requeteur
         $dom = new Query($html);
 
         //enregistre les fragments et les infos supplémentaires
@@ -336,7 +365,11 @@ class Import extends AbstractJob
                                 $xv = $this->getXpathValue($this->forceHtmlEncoding($xml), $m['xpath']);
                                 $m['id'] = $xv['v'];
                                 break;                            
-                            }
+                            case 'url':
+                                //récupère l'url
+                                $m['url'] = $m['domaine'].$result->value;
+                                break;                            
+                        }
                     }
                     if(isset($m['suptag'])){
                         $exp='/<'.$m['suptag'].'(.*?)<\/'.$m['suptag'].'>/s';
@@ -386,18 +419,24 @@ class Import extends AbstractJob
                         if(isset($m['find']) && isset($m['replace'])){
                             $v = str_replace($m['find'], $m['replace'],$v);
                         }
-                        if($m['function']=="extractPhrasesKeywords"){
-                            $this->extractPhrasesKeywords($oItem,$v);
-                        }
-                        if($m['function']=="extractKeywords"){
-                            $this->extractKeywords($oItem,$v);
-                        }                        
-                        if($m['function']=="setUri"){
-                            $v = [$m['key'],$v, $xv['r']->getAttribute('href')];
-                            $m['key']="setUri";
-                        }
-                        if($m['key']=="schema:actionOption"){
-                            $v=$this->idImport.'_'.$v;
+                        if(isset($m['function'])){
+                            if($m['function']=="extractPhrasesKeywords"){
+                                $this->extractPhrasesKeywords($oItem,$v);
+                            }
+                            if($m['function']=="extractKeywords"){
+                                $this->extractKeywords($oItem,$v);
+                            }                        
+                            if($m['function']=="setUri"){
+                                $v = [$m['key'],$v, $xv['r']->getAttribute('href')];
+                                $m['key']="setUri";
+                            }
+                            if($m['key']=="schema:actionOption"){
+                                $v=$this->idImport.'_'.$v;
+                            }
+                            if($m['function']=="getUriParam"){
+                                parse_str(parse_url($v,PHP_URL_QUERY),$uParams);
+                                $v = isset($uParams[$m['kParam']]) ? $uParams[$m['kParam']] : '-';
+                            }    
                         }                                         
                         $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
                     }
@@ -518,8 +557,16 @@ class Import extends AbstractJob
             return $data['oItem']->value('bibo:content')->__toString();
         }else{
             $response = $this->client->setUri($data['url'])->send();
-            if ($response->isSuccess())
-                return $response->getBody();
+            if ($response->isSuccess()){
+                $body = $response->getBody();
+                //vérifie si les données sont dans un cdata
+                if($data['cdata']){
+                    //$dom = new Query($body);
+                    $v = $this->getXpathValue($this->forceHtmlEncoding($body), $data['cdata']);//$dom->queryXpath($data['cdata']);
+                    $body = $v['r']->ownerDocument->saveXML($v['r']);
+               }
+               return $body;
+            }
             throw new RuntimeException('Impossible de récupérer la page Web : '.$response->getReasonPhrase());			    
         }
     }
