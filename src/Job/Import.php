@@ -20,6 +20,7 @@ use Omeka\Api\Exception\RuntimeException;
 use Laminas\Dom\Query;
 use Laminas\Http\Client;
 use Omeka\Stdlib\Message;
+use Scraping\Scraping\Cookies;
 
 class Import extends AbstractJob
 {
@@ -177,6 +178,12 @@ class Import extends AbstractJob
      * @var array
      */
     protected $reprises=[];
+    /**
+     * proriété pour gérer des valeurs de paramètres
+     *
+     * @var array
+     */
+    protected $urlParams=[];
     
 
     /**
@@ -212,6 +219,10 @@ class Import extends AbstractJob
         $this->idImport = $this->getArg('idImport');
         $this->client = $this->getServiceLocator()->get('Omeka\HttpClient')
             ->setOptions(['timeout' => 20]);
+
+        //ajoute les cookies si nécessaire
+        $c = new Cookies();
+        $this->client = $c->set($this->client);    
 
         $this->rake = new RakePlus('OK',$this->lang);
 
@@ -362,7 +373,7 @@ class Import extends AbstractJob
                                 break;                            
                             case 'unique':
                                 //récupère la clef
-                                $xv = $this->getXpathValue($this->forceHtmlEncoding($xml), $m['xpath']);
+                                $xv = $this->getXpathValue($this->forceHtmlEncoding($xml), $m['xpath'])[0];
                                 $m['id'] = $xv['v'];
                                 break;                            
                             case 'url':
@@ -389,56 +400,50 @@ class Import extends AbstractJob
                     if($f && isset($m['repriseK']) && isset($m['repriseV'])){
                         $this->reprises[]=$m['xpath'];        
                     }
-                }    
+                }
+            //vérifie s'il trouver les informations avec une chaine de requête
+            }elseif($m['key']=='chaine'){
+                $cv = false;
+                foreach ($m['blocks'] as $b) {
+                    if(isset($b['params']) && isset($b['urlParams'])){
+                        $url = $b['urlParams'];
+                        foreach ($b['params'] as $p) {
+                            if(!$this->urlParams[$p]){
+                                $url=false;
+                                break;
+                            }
+                            $url = str_replace($p,$this->urlParams[$p],$url);
+                        }
+                    }else{
+                        $url = $b['url'].$cv['v'];
+                    }
+                    if(!$url)break;
+                    $xv = $this->getXpathValue($this->getBody(['url'=>$url]), $b['xpath'])[0];
+                    $cv = $this->setVal($m, $xv['v'], $xv, $oItem);             
+
+                }
+                if($cv['v']){
+                    $infos = $this->mapValues([$m['finalkey']=>$cv['v'].""], $infos);                    
+                }
             }else{
                 //vérification des fonctions a executer
                 if(isset($m['function']) && $m['function']=="count"){
                     $results = $dom->queryXpath($m['xpath']);
                     $infos = $this->mapValues([$m['key']=>$results->count().""], $infos);                    
                 }else{
-                    //récupère la valeur
-                    $xv = $this->getXpathValue('', $m['xpath'], $dom, $m['val']);
-                    $val = $xv['v'];
-                    //calcul la valeur                     
-                    if(isset($m['start'])){
-                        if(isset($m['end']))
-                            $val = substr($val, $m['start'], $m['end']);
-                        else
-                            $val = substr($val, $m['start']);
-                    }
-                    if(isset($m['multi'])){
-                        $vals = explode($m['multi'],$val);
-                    }else
-                        $vals = [$val];
-                    foreach($vals as $v) {
-                        $resource = false;
-                        if(isset($m['getId'])){
-                            $v =  $this->arrRef[$m['getId']][$v];
-                            $resource = true;
+                    //récupère les valeurs
+                    $rs = $this->getXpathValue('', $m['xpath'], $dom, $m['val']);
+                    foreach ($rs as $xv) {
+                        $val = $xv['v'];
+                        //gestion des valeurs multiple
+                        if(isset($m['multi'])){
+                            $vals = explode($m['multi'],$val);
+                        }else
+                            $vals = [$val];
+                        foreach($vals as $v) {
+                            $cv = $this->setVal($m, $v, $xv, $oItem);             
+                            $infos = $this->mapValues([$m['key']=>$cv['v']], $infos, $cv['r']);                    
                         }
-                        if(isset($m['find']) && isset($m['replace'])){
-                            $v = str_replace($m['find'], $m['replace'],$v);
-                        }
-                        if(isset($m['function'])){
-                            if($m['function']=="extractPhrasesKeywords"){
-                                $this->extractPhrasesKeywords($oItem,$v);
-                            }
-                            if($m['function']=="extractKeywords"){
-                                $this->extractKeywords($oItem,$v);
-                            }                        
-                            if($m['function']=="setUri"){
-                                $v = [$m['key'],$v, $xv['r']->getAttribute('href')];
-                                $m['key']="setUri";
-                            }
-                            if($m['key']=="schema:actionOption"){
-                                $v=$this->idImport.'_'.$v;
-                            }
-                            if($m['function']=="getUriParam"){
-                                parse_str(parse_url($v,PHP_URL_QUERY),$uParams);
-                                $v = isset($uParams[$m['kParam']]) ? $uParams[$m['kParam']] : '-';
-                            }    
-                        }                                         
-                        $infos = $this->mapValues([$m['key']=>$v], $infos, $resource);                    
                     }
                 }
             }
@@ -454,6 +459,58 @@ class Import extends AbstractJob
 
         return $oItem;
     }
+
+    /**
+     * calcule la valeur 
+     *
+     * @param   array     $m
+     * @param   string    $v
+     * @param   array     $xv
+     * @param   object    $oItem
+
+     * 
+     * @return  array
+     */
+    protected function setVal($m, $v, $xv, $oItem)    
+    {
+        $resource = false;
+        //calcul la valeur                     
+        if(isset($m['start'])){
+            if(isset($m['end']))
+                $v = substr($v, $m['start'], $m['end']);
+            else
+                $v = substr($v, $m['start']);
+        }
+        if(isset($m['getId'])){
+            $v =  $this->arrRef[$m['getId']][$v];
+            $resource = true;
+        }
+        if(isset($m['find']) && isset($m['replace'])){
+            $v = str_replace($m['find'], $m['replace'],$v);
+        }
+        if(isset($m['function'])){
+            if($m['function']=="extractPhrasesKeywords"){
+                $this->extractPhrasesKeywords($oItem,$v);
+            }
+            if($m['function']=="extractKeywords"){
+                $this->extractKeywords($oItem,$v);
+            }                        
+            if($m['function']=="setUri"){
+                $v = [$m['key'],$v, $xv['r']->getAttribute('href')];
+                $m['key']="setUri";
+            }
+            if($m['key']=="schema:actionOption"){
+                $v=$this->idImport.'_'.$v;
+            }
+            if($m['function']=="getUriParam"){
+                parse_str(parse_url($v,PHP_URL_QUERY),$uParams);
+                $v = isset($uParams[$m['kParam']]) ? $uParams[$m['kParam']] : '';
+                $this->urlParams[$m['kParam']]=$v;
+            }    
+        }             
+        return ['v'=>$v,'r'=>$resource];
+    }
+
 
     /**
      * force l'encodage html
@@ -482,12 +539,14 @@ class Import extends AbstractJob
     {
         if(!$dom) $dom = new Query($html);
         $results = $dom->queryXpath($xpath);
+        $rs = [];
         foreach ($results as $j=>$result) {
-            return [
+            $rs[]=[
                 "v"=>$this->utf8decode ? utf8_decode($result->nodeValue) : $result->nodeValue,
                 "r"=>$result
             ];
         }
+        if($rs)return $rs;
         return [
             "v"=>$default,
             "r"=>null
@@ -562,7 +621,7 @@ class Import extends AbstractJob
                 //vérifie si les données sont dans un cdata
                 if($data['cdata']){
                     //$dom = new Query($body);
-                    $v = $this->getXpathValue($this->forceHtmlEncoding($body), $data['cdata']);//$dom->queryXpath($data['cdata']);
+                    $v = $this->getXpathValue($this->forceHtmlEncoding($body), $data['cdata'])[0];//$dom->queryXpath($data['cdata']);
                     $body = $v['r']->ownerDocument->saveXML($v['r']);
                }
                return $body;

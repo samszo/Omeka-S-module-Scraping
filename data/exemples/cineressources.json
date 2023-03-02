@@ -3,7 +3,7 @@
     "utf8decode": true,
     "data": {
         "params": ["valDeb","valFin"],
-        "values": [1900,1914],
+        "values": [2000,2001],
         "increment":"debfin",
         "urlParams": "http://www.cineressources.net/affiches_recherche_s.do.php?binf=valDeb&bsup=valFin",
         "titreParams": "Recherche affiche : ",
@@ -146,7 +146,7 @@
                             "key": "dcterms:audience"
                         },{
                             "xpath": "//li[@id='sujet_film']/a/@href",
-                            "key": "dcterms:identifier",
+                            "key": "dcterms:isReferencedBy",
                             "function":"getUriParam",
                             "kParam": "pk"
                         },{
@@ -156,6 +156,21 @@
                             "function":"extractKeywords",
                             "find": "Sujet (film) :",
                             "replace": ""      
+                        },{
+                            "key": "chaine",
+                            "blocks":[
+                                {
+                                    "params": ["pk"],
+                                    "urlParams": "http://cinemage.bifi.fr/pages/search_step2.php?ID=pk",
+                                    "xpath": "//a[@class='item_basket']/@name",
+                                    "find": ":$:",
+                                    "replace": ""              
+                                },{
+                                    "url": "http://cinemage.bifi.fr/pages/search_step2_zoom.php?pix=valPrevBlock",
+                                    "xpath": "//div[@class='flashcontent']/img/@src"
+                                }
+                            ],
+                            "finalkey": "urlMedia"
                         }                                           
                         ]
                     }
