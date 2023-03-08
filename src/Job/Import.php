@@ -613,21 +613,22 @@ class Import extends AbstractJob
     protected function getBody($data)
     {
         if(isset($data['oItem']) && $data['oItem']->value('bibo:content')){
-            return $data['oItem']->value('bibo:content')->__toString();
+            $body = $data['oItem']->value('bibo:content')->__toString();
         }else{
             $response = $this->client->setUri($data['url'])->send();
             if ($response->isSuccess()){
                 $body = $response->getBody();
-                //vérifie si les données sont dans un cdata
-                if($data['cdata']){
-                    //$dom = new Query($body);
-                    $v = $this->getXpathValue($this->forceHtmlEncoding($body), $data['cdata'])[0];//$dom->queryXpath($data['cdata']);
-                    $body = $v['r']->ownerDocument->saveXML($v['r']);
-               }
-               return $body;
-            }
-            throw new RuntimeException('Impossible de récupérer la page Web : '.$response->getReasonPhrase());			    
+            }else
+                throw new RuntimeException('Impossible de récupérer la page Web : '.$response->getReasonPhrase());			    
         }
+        //vérifie si les données sont dans un cdata
+        if($data['cdata']){
+            //$dom = new Query($body);
+            $v = $this->getXpathValue($this->forceHtmlEncoding($body), $data['cdata'])[0];//$dom->queryXpath($data['cdata']);
+            $body = $v['r']->ownerDocument->saveXML($v['r']);
+        }
+        return $body;
+        
     }
 
     /**

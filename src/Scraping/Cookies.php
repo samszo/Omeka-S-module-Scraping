@@ -1,5 +1,5 @@
 <?php
-namespace scraping\Scraping;
+namespace Scraping\Scraping;
 
 class Cookies
   {
@@ -18,13 +18,16 @@ class Cookies
   
       /**
        * initialise le tableau des cookies
-       *
+       *mv
        * 
        */
       public function init()      
       {
 
         $this->arrCookies = [
+          'PHPSESSID'=>'to196h00u7t6bojerqdfdjovj1',
+          '_ga'=>'GA1.2.86155204.1676903784',
+          '_gid'=>'GA1.2.1057544247.1677070541'
         ];
 
       }
