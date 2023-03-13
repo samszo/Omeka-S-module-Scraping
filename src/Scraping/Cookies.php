@@ -23,15 +23,12 @@ class Cookies
        */
       public function init()      
       {
-
         $this->arrCookies = [
-          'PHPSESSID'=>'to196h00u7t6bojerqdfdjovj1',
-          '_ga'=>'GA1.2.86155204.1676903784',
-          '_gid'=>'GA1.2.1057544247.1677070541'
+          'PHPSESSID'=>'a1dv2gss7094cb9v73u92ojm15',
+          '_ga'=>'GA1.2.1169492492.1675235636',
+          '_gid'=>'GA1.2.882806103.1678468172'
         ];
-
       }
-  
     /**
      * Ajoute les cookies au client
      *

@@ -2,10 +2,10 @@
     "action": "saveItems",
     "utf8decode": true,
     "data": {
-        "deb": 2000,
-        "fin": 2001,
+        "deb": 1900,
+        "fin": 2022,
         "increment":"debfin",
-        "urlParams": "http://www.cineressources.net/affiches_recherche_s.do.php?binf=valDeb&bsup=valFin",
+        "urlParams": "http://www.cineressources.net/affiches_recherche_s.do.php?binf=deb&bsup=fin",
         "titreParams": "Recherche affiche : ",
         "mapping": [],
         "fctCallBack": {
@@ -62,7 +62,9 @@
                             "xpath": "//li[@id='titre_principal']",
                             "key": "dcterms:title",
                             "find": "Titre : ",
-                            "replace": ""
+                            "replace": "",
+                            "multi":" - ",
+                            "function":"extractKeywords"
                         },{
                             "xpath": "//li[@id='auteur']",
                             "key": "dcterms:creator",
@@ -157,31 +159,12 @@
                             "find": "Sujet (film) :",
                             "replace": ""
                         },{
-                            "key": "chaine",
-                            "blocks":[
-                                {
-                                    "params": ["pk"],
-                                    "urlParams": "http://cinemage.bifi.fr/pages/search_step2.php?ID=pk",
-                                    "xpath": "//input[@id='token']/@value",
-                                    "function":"setUrlParam",                                    
-                                    "kParam": "token",
-                                    "key":"foaf:page"
-                                },{
-                                    "post": {"nb":6,"p":1,"r":"affiche","token":"token"},
-                                    "urlParams": "http://cinemage.bifi.fr/pages/getDataStep2.do.php",
-                                    "xpath": "//a[@class='item_basket']/@name",
-                                    "find": ":$:",
-                                    "replace": "",
-                                    "key":"foaf:page"              
-                                },{                                        
-                                    "url": "http://cinemage.bifi.fr/pages/search_step2_zoom.php?pix=",
-                                    "xpath": "//div[@id='flashcontent']/img/@src",                                    
-                                    "find": "img.php",
-                                    "replace": "http://cinemage.bifi.fr/pages/img.php",
-                                    "key":"foaf:page"              
-                                }
-                            ],
-                            "finalkey": "urlMedia"
+                            "xpath": "//li[@id='sujet_personne']",
+                            "key": "foaf:topic",
+                            "multi":" - ",
+                            "function":"extractKeywords",
+                            "find": "Sujet (personne) :",
+                            "replace": ""
                         } 
                         ]
                     }

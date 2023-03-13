@@ -5,3 +5,6 @@ data/exemples/text.html
 data/exemples/view-source_dramacode.github.io.html
 .vscode/launch.json
 src/Scraping/Cookies.php
+src/Job/Import.php
+src/Job/tmp/*
+.gitignore

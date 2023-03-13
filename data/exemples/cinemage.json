@@ -1,0 +1,60 @@
+[{
+    "action": "saveItems",
+    "utf8decode": true,
+    "data": {
+        "deb": 1971,
+        "fin": 1972,
+        "increment":"debfin",
+        "url": "http://cinemage.bifi.fr/pages/search_step1.php",
+        "titreParams":"Recherche cinemage ",
+        "utf8":1,
+        "http":{"cookies":1},
+        "postParams": {"token":"443f1818e6a112fe97b068e8db075daf",
+            "searchby":"film",
+            "search_personnalite_id":0,
+            "search_title":"",
+            "search_personnalite_generique":"",
+            "search_annee_begin":"deb",
+            "search_annee_end":"fin",
+            "search_pays":0
+        },
+        "mapping": [
+            {
+            "http":{"cookies":1},
+            "utf8":1,
+            "class": "bibo:Webpage",
+            "key": "fragments",
+            "xpath": "//div[@class='search_button_voir']/a/@href",
+            "domaine": "http://cinemage.bifi.fr/pages/",
+            "function":"getUriParam",
+            "kParam": "ID",
+            "mapping": [
+                {
+                    "key": "chaine",
+                    "blocks":[
+                        {
+                            "http":{"keepClient":1,"headers":1,"params":[{}]},
+                            "post": {"nb":6,"p":1,"r":"affiche","token":"443f1818e6a112fe97b068e8db075daf"},
+                            "urlParams": "http://cinemage.bifi.fr/pages/getDataStep2.do.php?ID=pk",
+                            "params":[{"pk":"ID"}],
+                            "xpath": "//a[@class='item_basket']/@name",
+                            "find": ":$:",
+                            "replace": "",
+                            "key":"foaf:page"              
+                        },{
+                            "urlPrevVal":1,                                        
+                            "http":{"cookies":1},
+                            "url": "http://cinemage.bifi.fr/pages/search_step2_zoom.php?pix=",
+                            "xpath": "//div[@id='flashcontent']/img/@src",                                    
+                            "find": "img.php",
+                            "replace": "http://cinemage.bifi.fr/pages/img.php",
+                            "key":"foaf:page"              
+                        }
+                    ],
+                    "finalkey": "urlMedia"
+                }                                           
+            ]                        
+            }
+        ]
+    }
+}]
